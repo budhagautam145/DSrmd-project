@@ -1,0 +1,127 @@
+---
+title: "NYPD Shooting"
+author: "Budha Gautam"
+date: "2025-07-13"
+output: 
+  pdf_document:
+    toc: true
+    number_sections: true
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(caret)
+library(DT)
+```
+## NYPD Shooting Overview
+
+This report investigates New York City shooting incidents from 2006 through 2024. The dataset captures each shooting’s date, time, borough, location classification, and demographic details for both victims and suspects.  
+
+My goal is to develop a logistic regression model that estimates the probability that a given shooting resulted in a homicide, using features such as the borough in which the shooting occurred and the month it occurred. 
+
+Key tools in this analysis:
+- **tidyverse** for data cleaning, transformation, and plotting  
+- **caret** for partitioning the data and computing the confusion matrix  
+
+```{r data-loading}
+url_in <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+nypd_cases <- read_csv(url(url_in))
+
+nypd_cases <- nypd_cases %>%
+  mutate(
+    VIC_AGE_GROUP = case_when(
+      VIC_AGE_GROUP == "1022" ~ NA_character_,
+      TRUE ~ VIC_AGE_GROUP
+    )
+  )
+
+print(head(nypd_cases, 10))
+
+```
+
+```{r date-processing}
+nypd_cases <- nypd_cases %>%
+  mutate(
+    occur_date = as.Date(OCCUR_DATE, "%m/%d/%Y"),
+    year = as.integer(format(occur_date, "%Y")),
+    month = as.Date(paste0(format(occur_date, "%Y-%m"), "-01"))
+  ) %>%
+  select(-OCCUR_DATE)
+
+head(nypd_cases[c("occur_date", "year", "month")])
+```
+
+```{r monthly-trends}
+monthly_counts <- nypd_cases %>% count(month)
+ggplot(monthly_counts, aes(month, n)) +
+  geom_line() +
+  labs(title = "Monthly Shooting Incidents", x = "Month", y = "Count") +
+  theme_minimal()
+```
+
+```{r borough-analysis}
+boro_counts <- nypd_cases %>% 
+  filter(!is.na(BORO)) %>% 
+  count(BORO)
+
+ggplot(boro_counts, aes(BORO, n, fill = BORO)) +
+  geom_col(show.legend = FALSE) +
+  labs(title = "Shooting Incidents by Borough", x = "Borough", y = "Count") +
+  theme_minimal()
+```
+
+```{r modeling}
+model_data <- nypd_cases %>%
+  filter(
+    !is.na(STATISTICAL_MURDER_FLAG),
+    !is.na(BORO),
+    !is.na(VIC_AGE_GROUP),
+    !is.na(VIC_RACE)
+  ) %>%
+  transmute(
+    murder = STATISTICAL_MURDER_FLAG,
+    BORO, 
+    vic_age = VIC_AGE_GROUP, 
+    vic_race = VIC_RACE
+  ) %>%
+  mutate(across(everything(), as.factor))
+
+set.seed(123)
+train_idx <- createDataPartition(model_data$murder, p = 0.7, list = FALSE)
+train_data <- model_data[train_idx, ]
+test_data <- model_data[-train_idx, ]
+
+test_data <- test_data %>%
+  mutate(
+    vic_age = factor(vic_age, levels = levels(train_data$vic_age)),
+    vic_race = factor(vic_race, levels = levels(train_data$vic_race)),
+    BORO = factor(BORO, levels = levels(train_data$BORO))
+  )
+
+model <- glm(murder ~ BORO + vic_age + vic_race,
+             data = train_data, 
+             family = binomial)
+
+summary(model)
+```
+
+```{r model-evaluation}
+pred_probs <- predict(model, test_data, type = "response")
+pred_class <- factor(pred_probs > 0.5, levels = c(FALSE, TRUE))
+
+confusionMatrix(pred_class, test_data$murder)
+```
+# Conclusion
+
+The logistic regression model achieved an overall accuracy of **79.9%**.
+
+- **Sensitivity (non-homicide detection)**: 100%  
+- **Specificity (homicide detection)**:   0%  
+
+This happens because only about 20% of incidents are flagged as homicides, so predicting the majority class yields ~80% accuracy.  
+
+**Key takeaways & biases**  
+- **Class imbalance**: Homicides (~20%) vs. non-homicides (~80%) skews the model.  
+- **Limited features**: Borough + victim demographics alone lack predictive power.  
+- **Reporting bias**: NYPD logging practices may under- or over-represent certain shootings.  
