@@ -57,6 +57,8 @@ global <- global_cases %>%
 
 global <- global %>% filter(cases > 0)
 
+
+
 global %>% filter(cases > 103000000)
 
 us_cases
@@ -266,10 +268,10 @@ US_tot_w_pred %>% ggplot() +
 
 ### Potential Biases in the Data and Analysis
 
-COVID-19 data may be underreported due to limited testing availability or reporting lags.
+COVID-19 data may not fully reflect reality due to limited testing and delays in reporting. For example, cases and deaths are often undercounted—especially in regions with fewer resources or during periods of overwhelmed healthcare systems.
 
-Daily case and death figures often include delays, especially over weekends or holidays. This can cause dips and spikes in the time series.
+Daily numbers can also fluctuate because of delays in reporting over weekends or holidays, leading to sudden dips or spikes in the data.
 
-The model assumes all states are comparable, but factors such as population age, healthcare infrastructure, urban vs. rural environments, and socioeconomic status can significantly influence outcomes.
+Our model assumes that all U.S. states are comparable, but that’s rarely the case. Factors like the age of the population, access to healthcare, urban versus rural settings, and economic differences can all impact the outcomes in significant ways.
 
-The data spans a long period, during which mask mandates, lockdowns, vaccine availability, and public behavior all changed significantly. These time-varying influences are not accounted for in model.
+Finally, the data covers a long time period during which many important things changed—such as mask mandates, lockdowns, vaccine rollouts, and shifts in public behavior. These changes can greatly influence the trends but are not captured in our model.
